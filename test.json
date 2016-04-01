@@ -1,0 +1,455 @@
+{
+  "entityName": "Enemy_1",
+  "entries": [
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.8668311238288879,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.8668311238288879,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.22189415991306306,
+              "output": 0.7780617475509644,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -21.220539093017579,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.8500719666481018,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.8500719666481018,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.20702776312828065,
+              "output": 0.751373291015625,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -19.734495162963868,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.8121877312660217,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.8121877312660217,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.17989493906497956,
+              "output": 0.6957595348358154,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -17.02229881286621,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.7663350701332092,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.7663350701332092,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.15468037128448487,
+              "output": 0.6351404190063477,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -14.501850128173829,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.705562949180603,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.705562949180603,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.12887242436408997,
+              "output": 0.5629907250404358,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -11.922087669372559,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.6422538161277771,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.6422538161277771,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.10766014456748963,
+              "output": 0.4951275587081909,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -9.801708221435547,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.5713948011398315,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.5713948011398315,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.08830955624580383,
+              "output": 0.4257718324661255,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -7.867423057556152,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.4947047233581543,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.4947047233581543,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.07089975476264954,
+              "output": 0.356756329536438,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -6.127139091491699,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    },
+    {
+      "actionName": "Advance to Melee Range",
+      "score": 0.41389089822769167,
+      "actions": [
+        {
+          "name": "Advance to Melee Range",
+          "context": "AIDecisionContext",
+          "score": 0.41389089822769167,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When I am far from my target",
+              "input": 0.05534576624631882,
+              "output": 0.2893803119659424,
+              "curve": "[Polynomial, -1,6,1,1,0]"
+            },
+            {
+              "name": "When I am healthy",
+              "input": 1.0,
+              "output": 0.9232664108276367,
+              "curve": "[Polynomial, -1,-4,1,-0.9,0]"
+            },
+            {
+              "name": "When target has low health",
+              "input": 0.0,
+              "output": 1.0,
+              "curve": "[Polynomial, -1,2,1,0,0]"
+            }
+          ],
+          "requirements": []
+        },
+        {
+          "name": "Do a dance",
+          "context": "AIDecisionContext",
+          "score": 0.0,
+          "weight": 0.0,
+          "time": 0.0,
+          "considerations": [
+            {
+              "name": "When close to another entity",
+              "input": -4.572362899780273,
+              "output": 0.0,
+              "curve": "[Polynomial, 1,1,0,0,0]"
+            }
+          ],
+          "requirements": []
+        }
+      ]
+    }
+  ]
+}

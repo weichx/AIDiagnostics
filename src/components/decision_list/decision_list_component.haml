@@ -1,0 +1,18 @@
+.panel.panel-default
+
+  .panel-heading
+    %h3.panel-title {{decisionLog.entityName}} -- Decision Log
+
+  .panel-body
+    %table.table.table-striped.table-bordered.table-hover.table-condensed
+      %thead
+        %tr
+          %td Decision Result
+          %td Score
+          %td Time
+      %tbody
+        %template(v-for="decision in decisionLog.entries")
+          %tr(v-on:click="select(decision)")
+            %td {{decision.actionName}}
+            %td {{decision.score}}
+            %td ?
