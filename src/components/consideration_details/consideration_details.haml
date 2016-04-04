@@ -1,0 +1,26 @@
+.panel.panel-default
+
+  .panel-heading
+    %h3.panel-title {{consideration.name}}
+
+  .panel-body
+
+    .row
+      .col-md-12
+        #plot-target
+
+    %form.form-inline
+      %fieldset.form-group
+        %label(for="slope") Slope
+        %input.form-control.form-control-sm(type="text" size="4" name="slope" v-model="consideration.curve.slope" number)
+      %fieldset.form-group
+        %label(for="exp") Exp
+        %input.form-control.form-control-sm(type="text" size="4" name="exp" v-model="consideration.curve.exp" number)
+      %fieldset.form-group
+        %label(for="vShift") vShift
+        %input.form-control.form-control-sm(type="text" size="4" name="vShift" v-model="consideration.curve.vShift" number)
+      %fieldset.form-group
+        %label(for="hShift") hShift
+        %input.form-control.form-control-sm(type="text" size="4" name="hShift" v-model="consideration.curve.hShift" number)
+
+    %button(v-on:click="restoreCurve()" v-bind:disabled="consideration.isPristine") Restore

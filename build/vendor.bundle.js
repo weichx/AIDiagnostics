@@ -98,13 +98,17 @@
 /* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
-	module.exports = __webpack_require__(3);
+	__webpack_require__(4);
+	__webpack_require__(28);
+	__webpack_require__(15);
+	module.exports = __webpack_require__(6);
 
 
 /***/ },
 /* 1 */,
 /* 2 */,
-/* 3 */
+/* 3 */,
+/* 4 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global, process) {/*!
@@ -9928,10 +9932,10 @@
 	}
 
 	module.exports = Vue;
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(4)))
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(5)))
 
 /***/ },
-/* 4 */
+/* 5 */
 /***/ function(module, exports) {
 
 	// shim for using process in browser
@@ -10025,6 +10029,1982 @@
 	    throw new Error('process.chdir is not supported');
 	};
 	process.umask = function() { return 0; };
+
+
+/***/ },
+/* 6 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var provider_1 = __webpack_require__(7);
+	function noSuchProvider(name) {
+	    throw new Error("Unable to locate provider '" + name + "'. Make sure you register this provide before attempting to use it");
+	}
+	function construct(constructor, args) {
+	    if (args === void 0) { args = []; }
+	    function F() {
+	        constructor.apply(this, args);
+	    }
+	    F.prototype = constructor.prototype;
+	    return new F();
+	}
+	var Needle = (function () {
+	    function Needle() {
+	        this.providerMap = {};
+	        this.onDefinedHandlers = {};
+	        this.onResolveHandlers = {};
+	        this.injectionMapRegistry = new Map();
+	    }
+	    Needle.prototype.inject = function (injectionKey) {
+	        var _this = this;
+	        return function (prototype, key) {
+	            var type = prototype.constructor;
+	            var injectionMap = _this.getInjectionMap(type);
+	            injectionMap[key] = injectionKey;
+	        };
+	    };
+	    Needle.prototype.provide = function (providerName, impl) {
+	        this.resolve(this.define(providerName), impl);
+	    };
+	    Needle.prototype.provideAsync = function (providerName, depsOrImpl, implementationPromise) {
+	        var _this = this;
+	        var deps = null;
+	        if (implementationPromise) {
+	            deps = depsOrImpl;
+	        }
+	        else {
+	            deps = [];
+	            implementationPromise = depsOrImpl;
+	        }
+	        return new Promise(function (resolve) {
+	            var onResolved = function () {
+	                var provider = _this.providerMap[providerName];
+	                var resolvedDependencies = provider.dependencies.map(function (depName) {
+	                    return _this.providerMap[depName].get();
+	                });
+	                var impl = implementationPromise.apply(null, resolvedDependencies);
+	                if (impl && typeof impl.then === 'function') {
+	                    impl.then(function (result) {
+	                        resolve(_this.resolve(provider, result));
+	                    });
+	                }
+	                else {
+	                    resolve(_this.resolve(provider, impl));
+	                }
+	            };
+	            var onDefined = function () {
+	                if (_this.checkCycles(providerName)) {
+	                    throw new Error('Cycles found!');
+	                }
+	                _this.onAllResolved(deps, onResolved);
+	            };
+	            _this.define(providerName, deps);
+	            _this.onAllDefined(deps, onDefined);
+	        });
+	    };
+	    Needle.prototype.mock = function (providerName, mockName, impl) {
+	        var provider = this.providerMap[providerName] || new provider_1.default(providerName);
+	        provider.addMock(mockName, [], impl);
+	        this.providerMap[providerName] = provider;
+	    };
+	    // public mockAsync(providerName : string, mockName : string, dependencies : Array<string>, impl : any) : void {
+	    //
+	    // }
+	    Needle.prototype.useMock = function (providerName, mockName) {
+	        var provider = this.providerMap[providerName];
+	        if (!provider)
+	            return noSuchProvider(providerName);
+	        provider.useMock(mockName);
+	        if (this.checkCycles(providerName)) {
+	            throw new Error("Cycle");
+	        }
+	        var definitionCallbacks = this.onDefinedHandlers[providerName];
+	        this.onDefinedHandlers[providerName] = null;
+	        if (!definitionCallbacks)
+	            return;
+	        for (var i = 0; i < definitionCallbacks.length; i++) {
+	            definitionCallbacks[i]();
+	        }
+	    };
+	    Needle.prototype.useActual = function (providerName) {
+	        var provider = this.providerMap[providerName];
+	        if (!provider)
+	            return noSuchProvider(providerName);
+	        provider.useActual();
+	    };
+	    Needle.prototype.get = function (providerName, variantName) {
+	        var provider = this.providerMap[providerName];
+	        if (!provider)
+	            return noSuchProvider(providerName);
+	        return provider.get(variantName);
+	    };
+	    //todo figure out the generics here for type checking, tuples dont seem to work as expected
+	    Needle.prototype.create = function (type, options) {
+	        return this.injectDependencies(construct(type, []), options);
+	    };
+	    Needle.prototype.injectDependencies = function (instance, options) {
+	        function injectDependencies(dependencies) {
+	            var keys = Object.keys(dependencies);
+	            for (var i = 0; i < keys.length; i++) {
+	                instance[keys[i]] = dependencies[keys[i]];
+	            }
+	            return instance;
+	        }
+	        return this.getInjectedDependencies(instance.constructor, options).then(injectDependencies);
+	    };
+	    Needle.prototype.getInjectedDependencies = function (type, overrides) {
+	        var _this = this;
+	        if (overrides === void 0) { overrides = {}; }
+	        return new Promise(function (resolve) {
+	            var propertyLookup = _this.injectionMapRegistry.get(type) || {};
+	            var propertyNames = Object.keys(propertyLookup);
+	            var providerNames = [];
+	            for (var i = 0; i < propertyNames.length; i++) {
+	                providerNames[i] = propertyLookup[propertyNames[i]];
+	            }
+	            var awaitedProviderNames = propertyNames.filter(function (name) {
+	                return overrides[name] === void 0;
+	            }).map(function (name) {
+	                return propertyLookup[name];
+	            });
+	            _this.onAllDefined(awaitedProviderNames, function () {
+	                _this.onAllResolved(awaitedProviderNames, function () {
+	                    var injectedDependencies = {};
+	                    for (var i = 0; i < propertyNames.length; i++) {
+	                        var providerName = providerNames[i];
+	                        var propertyName = propertyNames[i];
+	                        injectedDependencies[propertyName] = overrides[propertyName] || _this.get(providerName);
+	                    }
+	                    resolve(injectedDependencies);
+	                });
+	            });
+	        });
+	    };
+	    Needle.prototype.checkCycles = function (providerName, stack) {
+	        if (stack === void 0) { stack = []; }
+	        var provider = this.providerMap[providerName];
+	        if (stack.indexOf(providerName) !== -1) {
+	            throw new Error("Found cycle in " + stack.join(' -> ') + ' -> ' + providerName);
+	        }
+	        stack.push(providerName);
+	        for (var i = 0; i < provider.dependencies.length; i++) {
+	            this.checkCycles(provider.dependencies[i], stack);
+	        }
+	        stack.pop();
+	    };
+	    Needle.prototype.define = function (providerName, dependencies) {
+	        if (dependencies === void 0) { dependencies = []; }
+	        var provider = this.providerMap[providerName] || new provider_1.default(providerName, dependencies);
+	        var definitionCallbacks = this.onDefinedHandlers[providerName];
+	        this.providerMap[providerName] = provider;
+	        if (!definitionCallbacks)
+	            return provider;
+	        for (var i = 0; i < definitionCallbacks.length; i++) {
+	            definitionCallbacks[i]();
+	        }
+	        this.onDefinedHandlers[providerName] = null;
+	        return provider;
+	    };
+	    Needle.prototype.onDefined = function (providerName, callback) {
+	        if (this.providerMap[providerName]) {
+	            return callback();
+	        }
+	        var handlers = this.onDefinedHandlers[providerName] || [];
+	        handlers.push(callback);
+	        this.onDefinedHandlers[providerName] = handlers;
+	    };
+	    Needle.prototype.onAllDefined = function (dependencies, callback) {
+	        var defineCount = 0;
+	        var defineTotal = dependencies.length;
+	        if (defineTotal === 0)
+	            return callback();
+	        function definedCallback() {
+	            if (++defineCount === defineTotal)
+	                callback();
+	        }
+	        for (var i = 0; i < dependencies.length; i++) {
+	            this.onDefined(dependencies[i], definedCallback);
+	        }
+	    };
+	    Needle.prototype.resolve = function (provider, impl) {
+	        provider.setActual(impl);
+	        var resolutionCallbacks = this.onResolveHandlers[provider.name];
+	        if (!resolutionCallbacks)
+	            return provider;
+	        for (var i = 0; i < resolutionCallbacks.length; i++) {
+	            resolutionCallbacks[i]();
+	        }
+	        this.onResolveHandlers[provider.name] = null;
+	        return provider;
+	    };
+	    Needle.prototype.onResolved = function (providerName, callback) {
+	        var provider = this.providerMap[providerName];
+	        if (provider.isResolved) {
+	            return callback();
+	        }
+	        var resolutionCallbacks = this.onResolveHandlers[providerName] || [];
+	        resolutionCallbacks.push(callback);
+	        this.onResolveHandlers[providerName] = resolutionCallbacks;
+	    };
+	    Needle.prototype.onAllResolved = function (dependencies, callback) {
+	        var resolvedCount = 0;
+	        var totalToResolve = dependencies.length;
+	        if (totalToResolve === 0)
+	            return callback();
+	        function onProviderResolved() {
+	            if (++resolvedCount === totalToResolve)
+	                callback();
+	        }
+	        for (var i = 0; i < dependencies.length; i++) {
+	            this.onResolved(dependencies[i], onProviderResolved);
+	        }
+	    };
+	    Needle.prototype.getInjectionMap = function (type) {
+	        if (!type)
+	            return {};
+	        var map = this.injectionMapRegistry.get(type);
+	        if (!map) {
+	            var parentMap = this.getInjectionMap(Object.getPrototypeOf(type));
+	            map = (parentMap) ? JSON.parse(JSON.stringify(parentMap)) : {};
+	        }
+	        this.injectionMapRegistry.set(type, map);
+	        return map;
+	    };
+	    Needle.prototype.reset = function () {
+	        Needle.call(this);
+	    };
+	    return Needle;
+	}());
+	exports.Needle = Needle;
+	exports.Injector = new Needle();
+	function inject(injectionKey) {
+	    return exports.Injector.inject(injectionKey);
+	}
+	exports.inject = inject;
+	//# sourceMappingURL=injector.js.map
+
+/***/ },
+/* 7 */
+/***/ function(module, exports) {
+
+	"use strict";
+	function noSuchMock(providerName, mockName) {
+	    throw new Error("No mock named '" + mockName + "' exists for provider '" + providerName + "'");
+	}
+	function mockAlreadyRegistered(providerName, mockName) {
+	    throw new Error("Provider '" + providerName + " already has a mock named " + mockName + " registered");
+	}
+	var ProviderVariant = (function () {
+	    function ProviderVariant(name, dependencies, implementation) {
+	        if (dependencies === void 0) { dependencies = []; }
+	        this.name = name;
+	        this.dependencies = dependencies;
+	        this.implementation = implementation;
+	    }
+	    Object.defineProperty(ProviderVariant.prototype, "isResolved", {
+	        get: function () {
+	            return this.implementation !== void 0;
+	        },
+	        enumerable: true,
+	        configurable: true
+	    });
+	    return ProviderVariant;
+	}());
+	var Provider = (function () {
+	    function Provider(name, dependencies) {
+	        if (dependencies === void 0) { dependencies = []; }
+	        this.name = name;
+	        this.mocks = {};
+	        this.dependencies = dependencies;
+	        this.actual = new ProviderVariant('__actual__', dependencies);
+	        this.activeVariant = this.actual;
+	    }
+	    Object.defineProperty(Provider.prototype, "isResolved", {
+	        get: function () {
+	            return this.activeVariant.isResolved;
+	        },
+	        enumerable: true,
+	        configurable: true
+	    });
+	    Object.defineProperty(Provider.prototype, "isMocked", {
+	        get: function () {
+	            return this.activeVariant !== this.actual;
+	        },
+	        enumerable: true,
+	        configurable: true
+	    });
+	    Provider.prototype.get = function (variantName) {
+	        if (variantName === void 0) { variantName = null; }
+	        if (variantName) {
+	            var variant = this.mocks[variantName];
+	            if (!variant)
+	                throw new Error("Not variant");
+	            return variant.implementation;
+	        }
+	        return this.activeVariant.implementation;
+	    };
+	    Provider.prototype.has = function (variantName) {
+	        return this.get(variantName) !== void 0;
+	    };
+	    Provider.prototype.setActual = function (value) {
+	        if (this.actual.implementation !== void 0) {
+	            throw new Error("Provider " + this.name + " was given a non-mock implementation more than once!");
+	        }
+	        this.actual.implementation = value;
+	    };
+	    Provider.prototype.useActual = function () {
+	        this.activeVariant = this.actual;
+	    };
+	    Provider.prototype.useMock = function (key) {
+	        var mock = this.mocks[key];
+	        if (!mock) {
+	            noSuchMock(this.name, key);
+	        }
+	        else {
+	            this.activeVariant = mock;
+	        }
+	    };
+	    Provider.prototype.addMock = function (key, dependencies, implementation) {
+	        this.mocks[key] = new ProviderVariant(key, dependencies, implementation);
+	    };
+	    return Provider;
+	}());
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.default = Provider;
+	//# sourceMappingURL=provider.js.map
+
+/***/ },
+/* 8 */,
+/* 9 */,
+/* 10 */,
+/* 11 */,
+/* 12 */,
+/* 13 */,
+/* 14 */,
+/* 15 */
+/***/ function(module, exports) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {var win = null;
+	try {
+	    win = window;
+	}
+	catch (e) {
+	    win = global;
+	}
+	//some other modules might want access to the serialization meta data, expose it here
+	var TypeMap = win.__CerializeTypeMap = new Map();
+	exports.__TypeMap = TypeMap;
+	//convert strings like my_camel_string to myCamelString
+	function CamelCase(str) {
+	    var STRING_CAMELIZE_REGEXP = (/(\-|_|\.|\s)+(.)?/g);
+	    return str.replace(STRING_CAMELIZE_REGEXP, function (match, separator, chr) {
+	        return chr ? chr.toUpperCase() : '';
+	    }).replace(/^([A-Z])/, function (match, separator, chr) {
+	        return match.toLowerCase();
+	    });
+	}
+	exports.CamelCase = CamelCase;
+	//convert strings like MyCamelString to my_camel_string
+	function SnakeCase(str) {
+	    var STRING_DECAMELIZE_REGEXP = (/([a-z\d])([A-Z])/g);
+	    return str.replace(STRING_DECAMELIZE_REGEXP, '$1_$2').toLowerCase();
+	}
+	exports.SnakeCase = SnakeCase;
+	//convert strings like myCamelCase to my_camel_case
+	function UnderscoreCase(str) {
+	    var STRING_UNDERSCORE_REGEXP_1 = (/([a-z\d])([A-Z]+)/g);
+	    var STRING_UNDERSCORE_REGEXP_2 = (/\-|\s+/g);
+	    return str.replace(STRING_UNDERSCORE_REGEXP_1, '$1_$2').
+	        replace(STRING_UNDERSCORE_REGEXP_2, '_').toLowerCase();
+	}
+	exports.UnderscoreCase = UnderscoreCase;
+	//convert strings like my_camelCase to my-camel-case
+	function DashCase(str) {
+	    var STRING_DASHERIZE_REGEXP = (/([a-z\d])([A-Z])/g);
+	    str = str.replace(/_/g, '-');
+	    return str.replace(STRING_DASHERIZE_REGEXP, '$1-$2').toLowerCase();
+	}
+	exports.DashCase = DashCase;
+	//gets meta data for a key name, creating a new meta data instance
+	//if the input array doesn't arleady define one for the given keyName
+	function getMetaData(array, keyName) {
+	    for (var i = 0; i < array.length; i++) {
+	        if (array[i].keyName === keyName) {
+	            return array[i];
+	        }
+	    }
+	    array.push(new MetaData(keyName));
+	    return array[array.length - 1];
+	}
+	//helper for grabbing the type and keyname from a multi-type input variable
+	function getTypeAndKeyName(keyNameOrType, keyName) {
+	    var type = null;
+	    var key = null;
+	    if (typeof keyNameOrType === "string") {
+	        key = keyNameOrType;
+	    }
+	    else if (keyNameOrType && typeof keyNameOrType === "function" || typeof keyNameOrType === "object") {
+	        type = keyNameOrType;
+	        key = keyName;
+	    }
+	    return { key: key, type: type };
+	}
+	//todo instance.constructor.prototype.__proto__ === parent class, maybe use this?
+	//because types are stored in a JS Map keyed by constructor, serialization is not inherited by default
+	//keeping this seperate by default also allows sub classes to serialize differently than their parent
+	function inheritSerialization(parentType) {
+	    return function (childType) {
+	        var parentMetaData = TypeMap.get(parentType) || [];
+	        var childMetaData = TypeMap.get(childType) || [];
+	        for (var i = 0; i < parentMetaData.length; i++) {
+	            var keyName = parentMetaData[i].keyName;
+	            if (!MetaData.hasKeyName(childMetaData, keyName)) {
+	                childMetaData.push(MetaData.clone(parentMetaData[i]));
+	            }
+	        }
+	        TypeMap.set(childType, childMetaData);
+	    };
+	}
+	exports.inheritSerialization = inheritSerialization;
+	//an untyped serialization property annotation, gets existing meta data for the target or creates
+	//a new one and assigns the serialization key for that type in the meta data
+	function serialize(target, keyName) {
+	    if (!target || !keyName)
+	        return;
+	    var metaDataList = TypeMap.get(target.constructor) || [];
+	    var metadata = getMetaData(metaDataList, keyName);
+	    metadata.serializedKey = keyName;
+	    TypeMap.set(target.constructor, metaDataList);
+	}
+	exports.serialize = serialize;
+	//an untyped deserialization property annotation, gets existing meta data for the target or creates
+	//a new one and assigns the deserialization key for that type in the meta data
+	function deserialize(target, keyName) {
+	    if (!target || !keyName)
+	        return;
+	    var metaDataList = TypeMap.get(target.constructor) || [];
+	    var metadata = getMetaData(metaDataList, keyName);
+	    metadata.deserializedKey = keyName;
+	    TypeMap.set(target.constructor, metaDataList);
+	}
+	exports.deserialize = deserialize;
+	//this combines @serialize and @deserialize as defined above
+	function autoserialize(target, keyName) {
+	    if (!target || !keyName)
+	        return;
+	    var metaDataList = TypeMap.get(target.constructor) || [];
+	    var metadata = getMetaData(metaDataList, keyName);
+	    metadata.serializedKey = keyName;
+	    metadata.deserializedKey = keyName;
+	    TypeMap.set(target.constructor, metaDataList);
+	}
+	exports.autoserialize = autoserialize;
+	//We dont actually need the type to serialize but I like the consistency with deserializeAs which definitely does
+	//serializes a type using 1.) a custom key name, 2.) a custom type, or 3.) both custom key and type
+	function serializeAs(keyNameOrType, keyName) {
+	    if (!keyNameOrType)
+	        return;
+	    var _a = getTypeAndKeyName(keyNameOrType, keyName), key = _a.key, type = _a.type;
+	    return function (target, actualKeyName) {
+	        if (!target || !actualKeyName)
+	            return;
+	        var metaDataList = TypeMap.get(target.constructor) || [];
+	        var metadata = getMetaData(metaDataList, actualKeyName);
+	        metadata.serializedKey = (key) ? key : actualKeyName;
+	        metadata.serializedType = type;
+	        //this allows the type to be a stand alone function instead of a class
+	        if (type !== Date && type !== RegExp && !TypeMap.get(type) && typeof type === "function") {
+	            metadata.serializedType = {
+	                Serialize: type
+	            };
+	        }
+	        TypeMap.set(target.constructor, metaDataList);
+	    };
+	}
+	exports.serializeAs = serializeAs;
+	//deserializes a type using 1.) a custom key name, 2.) a custom type, or 3.) both custom key and type
+	function deserializeAs(keyNameOrType, keyName) {
+	    if (!keyNameOrType)
+	        return;
+	    var _a = getTypeAndKeyName(keyNameOrType, keyName), key = _a.key, type = _a.type;
+	    return function (target, actualKeyName) {
+	        if (!target || !actualKeyName)
+	            return;
+	        var metaDataList = TypeMap.get(target.constructor) || [];
+	        var metadata = getMetaData(metaDataList, actualKeyName);
+	        metadata.deserializedKey = (key) ? key : actualKeyName;
+	        metadata.deserializedType = type;
+	        //this allows the type to be a stand alone function instead of a class
+	        if (!TypeMap.get(type) && type !== Date && type !== RegExp && typeof type === "function") {
+	            metadata.deserializedType = {
+	                Deserialize: type
+	            };
+	        }
+	        TypeMap.set(target.constructor, metaDataList);
+	    };
+	}
+	exports.deserializeAs = deserializeAs;
+	//serializes and deserializes a type using 1.) a custom key name, 2.) a custom type, or 3.) both custom key and type
+	function autoserializeAs(keyNameOrType, keyName) {
+	    if (!keyNameOrType)
+	        return;
+	    var _a = getTypeAndKeyName(keyNameOrType, keyName), key = _a.key, type = _a.type;
+	    return function (target, actualKeyName) {
+	        if (!target || !actualKeyName)
+	            return;
+	        var metaDataList = TypeMap.get(target.constructor) || [];
+	        var metadata = getMetaData(metaDataList, actualKeyName);
+	        var serialKey = (key) ? key : actualKeyName;
+	        metadata.deserializedKey = serialKey;
+	        metadata.deserializedType = type;
+	        metadata.serializedKey = serialKey;
+	        metadata.serializedType = type;
+	        TypeMap.set(target.constructor, metaDataList);
+	    };
+	}
+	exports.autoserializeAs = autoserializeAs;
+	//helper class to contain serialization meta data for a property, each property
+	//in a type tagged with a serialization annotation will contain an array of these
+	//objects each describing one property
+	var MetaData = (function () {
+	    function MetaData(keyName) {
+	        this.keyName = keyName;
+	        this.serializedKey = null;
+	        this.deserializedKey = null;
+	        this.deserializedType = null;
+	        this.serializedType = null;
+	    }
+	    //checks for akey name in a meta data array
+	    MetaData.hasKeyName = function (metadataArray, key) {
+	        for (var i = 0; i < metadataArray.length; i++) {
+	            if (metadataArray[i].keyName === key)
+	                return true;
+	        }
+	        return false;
+	    };
+	    //clone a meta data instance, used for inheriting serialization properties
+	    MetaData.clone = function (data) {
+	        var metadata = new MetaData(data.keyName);
+	        metadata.deserializedKey = data.deserializedKey;
+	        metadata.serializedKey = data.serializedKey;
+	        metadata.serializedType = data.serializedType;
+	        metadata.deserializedType = data.deserializedType;
+	        return metadata;
+	    };
+	    return MetaData;
+	})();
+	//merges two primitive objects recursively, overwriting or defining properties on
+	//`instance` as they defined in `json`. Works on objects, arrays and primitives
+	function mergePrimitiveObjects(instance, json) {
+	    if (!json)
+	        return instance; //if we dont have a json value, just use what the instance defines already
+	    if (!instance)
+	        return json; //if we dont have an instance value, just use the json
+	    //for each key in the input json we need to do a merge into the instance object
+	    Object.keys(json).forEach(function (key) {
+	        var transformedKey = key;
+	        if (typeof deserializeKeyTransform === "function") {
+	            transformedKey = deserializeKeyTransform(key);
+	        }
+	        var jsonValue = json[key];
+	        var instanceValue = instance[key];
+	        if (Array.isArray(jsonValue)) {
+	            //in the array case we reuse the items that exist already where possible
+	            //so reset the instance array length (or make it an array if it isnt)
+	            //then call mergePrimitiveObjects recursively
+	            instanceValue = Array.isArray(instanceValue) ? instanceValue : [];
+	            instanceValue.length = jsonValue.length;
+	            for (var i = 0; i < instanceValue.length; i++) {
+	                instanceValue[i] = mergePrimitiveObjects(instanceValue[i], jsonValue[i]);
+	            }
+	        }
+	        else if (jsonValue && typeof jsonValue === "object") {
+	            if (!instanceValue || typeof instanceValue !== "object") {
+	                instanceValue = {};
+	            }
+	            instanceValue = mergePrimitiveObjects(instanceValue, jsonValue);
+	        }
+	        else {
+	            //primitive case, just use straight assignment
+	            instanceValue = jsonValue;
+	        }
+	        instance[transformedKey] = instanceValue;
+	    });
+	    return instance;
+	}
+	//takes an array defined in json and deserializes it into an array that ist stuffed with instances of `type`.
+	//any instances already defined in `arrayInstance` will be re-used where possible to maintain referential integrity.
+	function deserializeArrayInto(source, type, arrayInstance) {
+	    if (!Array.isArray(arrayInstance)) {
+	        arrayInstance = new Array(source.length);
+	    }
+	    //extend or truncate the target array to match the source array
+	    arrayInstance.length = source.length;
+	    for (var i = 0; i < source.length; i++) {
+	        arrayInstance[i] = DeserializeInto(source[i], type, arrayInstance[i] || new type());
+	    }
+	    return arrayInstance;
+	}
+	//takes an object defined in json and deserializes it into a `type` instance or populates / overwrites
+	//properties on `instance` if it is provided.
+	function deserializeObjectInto(json, type, instance) {
+	    var metadataArray = TypeMap.get(type);
+	    //if we dont have an instance we need to create a new `type`
+	    if (instance === null || instance === void 0) {
+	        if (type) {
+	            instance = new type();
+	        }
+	    }
+	    //if we dont have any meta data and we dont have a type to inflate, just merge the objects
+	    if (instance && !type && !metadataArray) {
+	        return mergePrimitiveObjects(instance, json);
+	    }
+	    //if we dont have meta data just bail out and keep what we have
+	    if (!metadataArray) {
+	        return instance;
+	    }
+	    //for each property in meta data, try to hydrate that property with its corresponding json value
+	    for (var i = 0; i < metadataArray.length; i++) {
+	        var metadata = metadataArray[i];
+	        //these are not the droids we're looking for (to deserialize), moving along
+	        if (!metadata.deserializedKey)
+	            continue;
+	        var serializedKey = metadata.deserializedKey;
+	        if (metadata.deserializedKey === metadata.keyName) {
+	            if (typeof deserializeKeyTransform === "function") {
+	                serializedKey = deserializeKeyTransform(metadata.keyName);
+	            }
+	        }
+	        var source = json[serializedKey];
+	        if (source === void 0)
+	            continue;
+	        var keyName = metadata.keyName;
+	        //if there is a custom deserialize function, use that
+	        if (metadata.deserializedType && typeof metadata.deserializedType.Deserialize === "function") {
+	            instance[keyName] = metadata.deserializedType.Deserialize(source);
+	        }
+	        else if (Array.isArray(source)) {
+	            if (metadata.deserializedType) {
+	                instance[keyName] = deserializeArrayInto(source, metadata.deserializedType, instance[keyName]);
+	            }
+	            else {
+	                instance[keyName] = deserializeArray(source, null);
+	            }
+	        }
+	        else if (typeof source === "string" && metadata.deserializedType === Date) {
+	            var deserializedDate = new Date(source);
+	            if (instance[keyName] instanceof Date) {
+	                instance[keyName].setTime(deserializedDate.getTime());
+	            }
+	            else {
+	                instance[keyName] = deserializedDate;
+	            }
+	        }
+	        else if (typeof source === "string" && type === RegExp) {
+	            instance[keyName] = new RegExp(source);
+	        }
+	        else if (source && typeof source === "object") {
+	            instance[keyName] = deserializeObjectInto(source, metadata.deserializedType, instance[keyName]);
+	        }
+	        else {
+	            instance[keyName] = source;
+	        }
+	    }
+	    //invoke our after deserialized callback if provided
+	    if (type && typeof type.OnDeserialized === "function") {
+	        type.OnDeserialized(instance, json);
+	    }
+	    return instance;
+	}
+	//takes some json, a type, and a target object and deserializes the json into that object
+	function DeserializeInto(source, type, target) {
+	    if (Array.isArray(source)) {
+	        return deserializeArrayInto(source, type, target || []);
+	    }
+	    else if (source && typeof source === "object") {
+	        return deserializeObjectInto(source, type, target || new type());
+	    }
+	    else {
+	        return target || new type();
+	    }
+	}
+	exports.DeserializeInto = DeserializeInto;
+	//deserializes an array of json into an array of `type`
+	function deserializeArray(source, type) {
+	    var retn = new Array(source.length);
+	    for (var i = 0; i < source.length; i++) {
+	        retn[i] = Deserialize(source[i], type);
+	    }
+	    return retn;
+	}
+	//deserialize a bit ofjson into an instace of `type`
+	function deserializeObject(json, type) {
+	    var metadataArray = TypeMap.get(type);
+	    //if we dont have meta data, just decode the json and use that
+	    if (!metadataArray) {
+	        if (!type) {
+	            return JSON.parse(JSON.stringify(json));
+	        }
+	        return new type(); //todo this probably wrong
+	    }
+	    var instance = new type();
+	    //for each tagged property on the source type, try to deserialize it
+	    for (var i = 0; i < metadataArray.length; i++) {
+	        var metadata = metadataArray[i];
+	        if (!metadata.deserializedKey)
+	            continue;
+	        var serializedKey = metadata.deserializedKey;
+	        if (metadata.deserializedKey === metadata.keyName) {
+	            if (typeof deserializeKeyTransform === "function") {
+	                serializedKey = deserializeKeyTransform(metadata.keyName);
+	            }
+	        }
+	        var source = json[serializedKey];
+	        var keyName = metadata.keyName;
+	        if (source === void 0)
+	            continue;
+	        //if there is a custom deserialize function, use that
+	        if (metadata.deserializedType && typeof metadata.deserializedType.Deserialize === "function") {
+	            instance[keyName] = metadata.deserializedType.Deserialize(source);
+	        }
+	        else if (Array.isArray(source)) {
+	            instance[keyName] = deserializeArray(source, metadata.deserializedType || null);
+	        }
+	        else if (typeof source === "string" && metadata.deserializedType === Date) {
+	            instance[keyName] = new Date(source);
+	        }
+	        else if (typeof json === "string" && type === RegExp) {
+	            instance[keyName] = new RegExp(json);
+	        }
+	        else if (source && typeof source === "object") {
+	            instance[keyName] = deserializeObject(source, metadata.deserializedType);
+	        }
+	        else {
+	            instance[keyName] = source;
+	        }
+	    }
+	    if (type && typeof type.OnDeserialized === "function") {
+	        type.OnDeserialized(instance, json);
+	    }
+	    return instance;
+	}
+	//deserializes a bit of json into a `type`
+	function Deserialize(json, type) {
+	    if (Array.isArray(json)) {
+	        return deserializeArray(json, type);
+	    }
+	    else if (json && typeof json === "object") {
+	        return deserializeObject(json, type);
+	    }
+	    else if (typeof json === "string" && type === Date) {
+	        return new Date(json);
+	    }
+	    else if (typeof json === "string" && type === RegExp) {
+	        return new RegExp(json);
+	    }
+	    else {
+	        return json;
+	    }
+	}
+	exports.Deserialize = Deserialize;
+	//take an array and spit out json
+	function serializeArray(source) {
+	    var serializedArray = new Array(source.length);
+	    for (var j = 0; j < source.length; j++) {
+	        serializedArray[j] = Serialize(source[j]);
+	    }
+	    return serializedArray;
+	}
+	//take an instance of something and try to spit out json for it based on property annotaitons
+	function serializeTypedObject(instance) {
+	    var json = {};
+	    var metadataArray = TypeMap.get(instance.constructor);
+	    for (var i = 0; i < metadataArray.length; i++) {
+	        var metadata = metadataArray[i];
+	        if (!metadata.serializedKey)
+	            continue;
+	        var serializedKey = metadata.serializedKey;
+	        if (metadata.serializedKey === metadata.keyName) {
+	            if (typeof serializeKeyTransform === "function") {
+	                serializedKey = serializeKeyTransform(metadata.keyName);
+	            }
+	        }
+	        var source = instance[metadata.keyName];
+	        if (source === void 0)
+	            continue;
+	        if (Array.isArray(source)) {
+	            json[serializedKey] = serializeArray(source);
+	        }
+	        else if (metadata.serializedType && typeof metadata.serializedType.Serialize === "function") {
+	            json[serializedKey] = metadata.serializedType.Serialize(source);
+	        }
+	        else {
+	            var value = Serialize(source);
+	            if (value !== void 0) {
+	                json[serializedKey] = value;
+	            }
+	        }
+	    }
+	    if (typeof instance.constructor.OnSerialized === "function") {
+	        instance.constructor.OnSerialized(instance, json);
+	    }
+	    return json;
+	}
+	//take an instance of something and spit out some json
+	function Serialize(instance) {
+	    if (instance === null || instance === void 0)
+	        return null;
+	    if (Array.isArray(instance)) {
+	        return serializeArray(instance);
+	    }
+	    if (instance.constructor && TypeMap.has(instance.constructor)) {
+	        return serializeTypedObject(instance);
+	    }
+	    if (instance instanceof Date || instance instanceof RegExp) {
+	        return instance.toString();
+	    }
+	    if (instance && typeof instance === 'object' || typeof instance === 'function') {
+	        var keys = Object.keys(instance);
+	        var json = {};
+	        for (var i = 0; i < keys.length; i++) {
+	            //todo this probably needs a key transform
+	            json[keys[i]] = Serialize(instance[keys[i]]);
+	        }
+	        return json;
+	    }
+	    return instance;
+	}
+	exports.Serialize = Serialize;
+	//these are used for transforming keys from one format to another
+	var serializeKeyTransform = null;
+	var deserializeKeyTransform = null;
+	//setter for deserializing key transform
+	function DeserializeKeysFrom(transform) {
+	    deserializeKeyTransform = transform;
+	}
+	exports.DeserializeKeysFrom = DeserializeKeysFrom;
+	//setter for serializing key transform
+	function SerializeKeysTo(transform) {
+	    serializeKeyTransform = transform;
+	}
+	exports.SerializeKeysTo = SerializeKeysTo;
+	//this is kinda dumb but typescript doesnt treat enums as a type, but sometimes you still
+	//want them to be serialized / deserialized, this does the trick but must be called after
+	//the enum is defined.
+	function SerializableEnumeration(e) {
+	    e.Serialize = function (x) {
+	        return e[x];
+	    };
+	    e.Deserialize = function (x) {
+	        return e[x];
+	    };
+	}
+	exports.SerializableEnumeration = SerializableEnumeration;
+	//expose the type map
+
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 16 */,
+/* 17 */,
+/* 18 */,
+/* 19 */,
+/* 20 */,
+/* 21 */,
+/* 22 */,
+/* 23 */,
+/* 24 */,
+/* 25 */,
+/* 26 */,
+/* 27 */,
+/* 28 */
+/***/ function(module, exports, __webpack_require__) {
+
+	module.exports = __webpack_require__(29);
+
+/***/ },
+/* 29 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var defaults = __webpack_require__(30);
+	var utils = __webpack_require__(31);
+	var dispatchRequest = __webpack_require__(32);
+	var InterceptorManager = __webpack_require__(40);
+	var isAbsoluteURL = __webpack_require__(41);
+	var combineURLs = __webpack_require__(42);
+	var bind = __webpack_require__(43);
+	var transformData = __webpack_require__(36);
+
+	function Axios(defaultConfig) {
+	  this.defaults = utils.merge({}, defaultConfig);
+	  this.interceptors = {
+	    request: new InterceptorManager(),
+	    response: new InterceptorManager()
+	  };
+	}
+
+	Axios.prototype.request = function request(config) {
+	  /*eslint no-param-reassign:0*/
+	  // Allow for axios('example/url'[, config]) a la fetch API
+	  if (typeof config === 'string') {
+	    config = utils.merge({
+	      url: arguments[0]
+	    }, arguments[1]);
+	  }
+
+	  config = utils.merge(defaults, this.defaults, { method: 'get' }, config);
+
+	  // Support baseURL config
+	  if (config.baseURL && !isAbsoluteURL(config.url)) {
+	    config.url = combineURLs(config.baseURL, config.url);
+	  }
+
+	  // Don't allow overriding defaults.withCredentials
+	  config.withCredentials = config.withCredentials || this.defaults.withCredentials;
+
+	  // Transform request data
+	  config.data = transformData(
+	    config.data,
+	    config.headers,
+	    config.transformRequest
+	  );
+
+	  // Flatten headers
+	  config.headers = utils.merge(
+	    config.headers.common || {},
+	    config.headers[config.method] || {},
+	    config.headers || {}
+	  );
+
+	  utils.forEach(
+	    ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+	    function cleanHeaderConfig(method) {
+	      delete config.headers[method];
+	    }
+	  );
+
+	  // Hook up interceptors middleware
+	  var chain = [dispatchRequest, undefined];
+	  var promise = Promise.resolve(config);
+
+	  this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+	    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+	  });
+
+	  this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+	    chain.push(interceptor.fulfilled, interceptor.rejected);
+	  });
+
+	  while (chain.length) {
+	    promise = promise.then(chain.shift(), chain.shift());
+	  }
+
+	  return promise;
+	};
+
+	var defaultInstance = new Axios(defaults);
+	var axios = module.exports = bind(Axios.prototype.request, defaultInstance);
+
+	axios.create = function create(defaultConfig) {
+	  return new Axios(defaultConfig);
+	};
+
+	// Expose defaults
+	axios.defaults = defaultInstance.defaults;
+
+	// Expose all/spread
+	axios.all = function all(promises) {
+	  return Promise.all(promises);
+	};
+	axios.spread = __webpack_require__(44);
+
+	// Expose interceptors
+	axios.interceptors = defaultInstance.interceptors;
+
+	// Provide aliases for supported request methods
+	utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+	  /*eslint func-names:0*/
+	  Axios.prototype[method] = function(url, config) {
+	    return this.request(utils.merge(config || {}, {
+	      method: method,
+	      url: url
+	    }));
+	  };
+	  axios[method] = bind(Axios.prototype[method], defaultInstance);
+	});
+
+	utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+	  /*eslint func-names:0*/
+	  Axios.prototype[method] = function(url, data, config) {
+	    return this.request(utils.merge(config || {}, {
+	      method: method,
+	      url: url,
+	      data: data
+	    }));
+	  };
+	  axios[method] = bind(Axios.prototype[method], defaultInstance);
+	});
+
+
+/***/ },
+/* 30 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	var PROTECTION_PREFIX = /^\)\]\}',?\n/;
+	var DEFAULT_CONTENT_TYPE = {
+	  'Content-Type': 'application/x-www-form-urlencoded'
+	};
+
+	module.exports = {
+	  transformRequest: [function transformResponseJSON(data, headers) {
+	    if (utils.isFormData(data)) {
+	      return data;
+	    }
+	    if (utils.isArrayBuffer(data)) {
+	      return data;
+	    }
+	    if (utils.isArrayBufferView(data)) {
+	      return data.buffer;
+	    }
+	    if (utils.isObject(data) && !utils.isFile(data) && !utils.isBlob(data)) {
+	      // Set application/json if no Content-Type has been specified
+	      if (!utils.isUndefined(headers)) {
+	        utils.forEach(headers, function processContentTypeHeader(val, key) {
+	          if (key.toLowerCase() === 'content-type') {
+	            headers['Content-Type'] = val;
+	          }
+	        });
+
+	        if (utils.isUndefined(headers['Content-Type'])) {
+	          headers['Content-Type'] = 'application/json;charset=utf-8';
+	        }
+	      }
+	      return JSON.stringify(data);
+	    }
+	    return data;
+	  }],
+
+	  transformResponse: [function transformResponseJSON(data) {
+	    /*eslint no-param-reassign:0*/
+	    if (typeof data === 'string') {
+	      data = data.replace(PROTECTION_PREFIX, '');
+	      try {
+	        data = JSON.parse(data);
+	      } catch (e) { /* Ignore */ }
+	    }
+	    return data;
+	  }],
+
+	  headers: {
+	    common: {
+	      'Accept': 'application/json, text/plain, */*'
+	    },
+	    patch: utils.merge(DEFAULT_CONTENT_TYPE),
+	    post: utils.merge(DEFAULT_CONTENT_TYPE),
+	    put: utils.merge(DEFAULT_CONTENT_TYPE)
+	  },
+
+	  timeout: 0,
+
+	  xsrfCookieName: 'XSRF-TOKEN',
+	  xsrfHeaderName: 'X-XSRF-TOKEN'
+	};
+
+
+/***/ },
+/* 31 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	/*global toString:true*/
+
+	// utils is a library of generic helper functions non-specific to axios
+
+	var toString = Object.prototype.toString;
+
+	/**
+	 * Determine if a value is an Array
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an Array, otherwise false
+	 */
+	function isArray(val) {
+	  return toString.call(val) === '[object Array]';
+	}
+
+	/**
+	 * Determine if a value is an ArrayBuffer
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an ArrayBuffer, otherwise false
+	 */
+	function isArrayBuffer(val) {
+	  return toString.call(val) === '[object ArrayBuffer]';
+	}
+
+	/**
+	 * Determine if a value is a FormData
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an FormData, otherwise false
+	 */
+	function isFormData(val) {
+	  return toString.call(val) === '[object FormData]';
+	}
+
+	/**
+	 * Determine if a value is a view on an ArrayBuffer
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a view on an ArrayBuffer, otherwise false
+	 */
+	function isArrayBufferView(val) {
+	  var result;
+	  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+	    result = ArrayBuffer.isView(val);
+	  } else {
+	    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+	  }
+	  return result;
+	}
+
+	/**
+	 * Determine if a value is a String
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a String, otherwise false
+	 */
+	function isString(val) {
+	  return typeof val === 'string';
+	}
+
+	/**
+	 * Determine if a value is a Number
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Number, otherwise false
+	 */
+	function isNumber(val) {
+	  return typeof val === 'number';
+	}
+
+	/**
+	 * Determine if a value is undefined
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if the value is undefined, otherwise false
+	 */
+	function isUndefined(val) {
+	  return typeof val === 'undefined';
+	}
+
+	/**
+	 * Determine if a value is an Object
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an Object, otherwise false
+	 */
+	function isObject(val) {
+	  return val !== null && typeof val === 'object';
+	}
+
+	/**
+	 * Determine if a value is a Date
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Date, otherwise false
+	 */
+	function isDate(val) {
+	  return toString.call(val) === '[object Date]';
+	}
+
+	/**
+	 * Determine if a value is a File
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a File, otherwise false
+	 */
+	function isFile(val) {
+	  return toString.call(val) === '[object File]';
+	}
+
+	/**
+	 * Determine if a value is a Blob
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Blob, otherwise false
+	 */
+	function isBlob(val) {
+	  return toString.call(val) === '[object Blob]';
+	}
+
+	/**
+	 * Trim excess whitespace off the beginning and end of a string
+	 *
+	 * @param {String} str The String to trim
+	 * @returns {String} The String freed of excess whitespace
+	 */
+	function trim(str) {
+	  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+	}
+
+	/**
+	 * Determine if we're running in a standard browser environment
+	 *
+	 * This allows axios to run in a web worker, and react-native.
+	 * Both environments support XMLHttpRequest, but not fully standard globals.
+	 *
+	 * web workers:
+	 *  typeof window -> undefined
+	 *  typeof document -> undefined
+	 *
+	 * react-native:
+	 *  typeof document.createElement -> undefined
+	 */
+	function isStandardBrowserEnv() {
+	  return (
+	    typeof window !== 'undefined' &&
+	    typeof document !== 'undefined' &&
+	    typeof document.createElement === 'function'
+	  );
+	}
+
+	/**
+	 * Iterate over an Array or an Object invoking a function for each item.
+	 *
+	 * If `obj` is an Array callback will be called passing
+	 * the value, index, and complete array for each item.
+	 *
+	 * If 'obj' is an Object callback will be called passing
+	 * the value, key, and complete object for each property.
+	 *
+	 * @param {Object|Array} obj The object to iterate
+	 * @param {Function} fn The callback to invoke for each item
+	 */
+	function forEach(obj, fn) {
+	  // Don't bother if no value provided
+	  if (obj === null || typeof obj === 'undefined') {
+	    return;
+	  }
+
+	  // Force an array if not already something iterable
+	  if (typeof obj !== 'object' && !isArray(obj)) {
+	    /*eslint no-param-reassign:0*/
+	    obj = [obj];
+	  }
+
+	  if (isArray(obj)) {
+	    // Iterate over array values
+	    for (var i = 0, l = obj.length; i < l; i++) {
+	      fn.call(null, obj[i], i, obj);
+	    }
+	  } else {
+	    // Iterate over object keys
+	    for (var key in obj) {
+	      if (obj.hasOwnProperty(key)) {
+	        fn.call(null, obj[key], key, obj);
+	      }
+	    }
+	  }
+	}
+
+	/**
+	 * Accepts varargs expecting each argument to be an object, then
+	 * immutably merges the properties of each object and returns result.
+	 *
+	 * When multiple objects contain the same key the later object in
+	 * the arguments list will take precedence.
+	 *
+	 * Example:
+	 *
+	 * ```js
+	 * var result = merge({foo: 123}, {foo: 456});
+	 * console.log(result.foo); // outputs 456
+	 * ```
+	 *
+	 * @param {Object} obj1 Object to merge
+	 * @returns {Object} Result of all merge properties
+	 */
+	function merge(/* obj1, obj2, obj3, ... */) {
+	  var result = {};
+	  function assignValue(val, key) {
+	    if (typeof result[key] === 'object' && typeof val === 'object') {
+	      result[key] = merge(result[key], val);
+	    } else {
+	      result[key] = val;
+	    }
+	  }
+
+	  for (var i = 0, l = arguments.length; i < l; i++) {
+	    forEach(arguments[i], assignValue);
+	  }
+	  return result;
+	}
+
+	module.exports = {
+	  isArray: isArray,
+	  isArrayBuffer: isArrayBuffer,
+	  isFormData: isFormData,
+	  isArrayBufferView: isArrayBufferView,
+	  isString: isString,
+	  isNumber: isNumber,
+	  isObject: isObject,
+	  isUndefined: isUndefined,
+	  isDate: isDate,
+	  isFile: isFile,
+	  isBlob: isBlob,
+	  isStandardBrowserEnv: isStandardBrowserEnv,
+	  forEach: forEach,
+	  merge: merge,
+	  trim: trim
+	};
+
+
+/***/ },
+/* 32 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(process) {'use strict';
+
+	/**
+	 * Dispatch a request to the server using whichever adapter
+	 * is supported by the current environment.
+	 *
+	 * @param {object} config The config that is to be used for the request
+	 * @returns {Promise} The Promise to be fulfilled
+	 */
+	module.exports = function dispatchRequest(config) {
+	  return new Promise(function executor(resolve, reject) {
+	    try {
+	      var adapter;
+
+	      if (typeof config.adapter === 'function') {
+	        // For custom adapter support
+	        adapter = config.adapter;
+	      } else if (typeof XMLHttpRequest !== 'undefined') {
+	        // For browsers use XHR adapter
+	        adapter = __webpack_require__(33);
+	      } else if (typeof process !== 'undefined') {
+	        // For node use HTTP adapter
+	        adapter = __webpack_require__(33);
+	      }
+
+	      if (typeof adapter === 'function') {
+	        adapter(resolve, reject, config);
+	      }
+	    } catch (e) {
+	      reject(e);
+	    }
+	  });
+	};
+
+
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(5)))
+
+/***/ },
+/* 33 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+	var buildURL = __webpack_require__(34);
+	var parseHeaders = __webpack_require__(35);
+	var transformData = __webpack_require__(36);
+	var isURLSameOrigin = __webpack_require__(37);
+	var btoa = window.btoa || __webpack_require__(38);
+
+	module.exports = function xhrAdapter(resolve, reject, config) {
+	  var requestData = config.data;
+	  var requestHeaders = config.headers;
+
+	  if (utils.isFormData(requestData)) {
+	    delete requestHeaders['Content-Type']; // Let the browser set it
+	  }
+
+	  var request = new XMLHttpRequest();
+
+	  // For IE 8/9 CORS support
+	  // Only supports POST and GET calls and doesn't returns the response headers.
+	  if (window.XDomainRequest && !('withCredentials' in request) && !isURLSameOrigin(config.url)) {
+	    request = new window.XDomainRequest();
+	  }
+
+	  // HTTP basic authentication
+	  if (config.auth) {
+	    var username = config.auth.username || '';
+	    var password = config.auth.password || '';
+	    requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+	  }
+
+	  request.open(config.method.toUpperCase(), buildURL(config.url, config.params, config.paramsSerializer), true);
+
+	  // Set the request timeout in MS
+	  request.timeout = config.timeout;
+
+	  // Listen for ready state
+	  request.onload = function handleLoad() {
+	    if (!request) {
+	      return;
+	    }
+	    // Prepare the response
+	    var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+	    var responseData = ['text', ''].indexOf(config.responseType || '') !== -1 ? request.responseText : request.response;
+	    var response = {
+	      data: transformData(
+	        responseData,
+	        responseHeaders,
+	        config.transformResponse
+	      ),
+	      // IE sends 1223 instead of 204 (https://github.com/mzabriskie/axios/issues/201)
+	      status: request.status === 1223 ? 204 : request.status,
+	      statusText: request.status === 1223 ? 'No Content' : request.statusText,
+	      headers: responseHeaders,
+	      config: config
+	    };
+
+	    // Resolve or reject the Promise based on the status
+	    ((response.status >= 200 && response.status < 300) ||
+	     (!('status' in request) && response.responseText) ?
+	      resolve :
+	      reject)(response);
+
+	    // Clean up request
+	    request = null;
+	  };
+
+	  // Handle low level network errors
+	  request.onerror = function handleError() {
+	    // Real errors are hidden from us by the browser
+	    // onerror should only fire if it's a network error
+	    reject(new Error('Network Error'));
+
+	    // Clean up request
+	    request = null;
+	  };
+
+	  // Add xsrf header
+	  // This is only done if running in a standard browser environment.
+	  // Specifically not if we're in a web worker, or react-native.
+	  if (utils.isStandardBrowserEnv()) {
+	    var cookies = __webpack_require__(39);
+
+	    // Add xsrf header
+	    var xsrfValue = config.withCredentials || isURLSameOrigin(config.url) ?
+	        cookies.read(config.xsrfCookieName) :
+	        undefined;
+
+	    if (xsrfValue) {
+	      requestHeaders[config.xsrfHeaderName] = xsrfValue;
+	    }
+	  }
+
+	  // Add headers to the request
+	  if ('setRequestHeader' in request) {
+	    utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+	      if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+	        // Remove Content-Type if data is undefined
+	        delete requestHeaders[key];
+	      } else {
+	        // Otherwise add header to the request
+	        request.setRequestHeader(key, val);
+	      }
+	    });
+	  }
+
+	  // Add withCredentials to request if needed
+	  if (config.withCredentials) {
+	    request.withCredentials = true;
+	  }
+
+	  // Add responseType to request if needed
+	  if (config.responseType) {
+	    try {
+	      request.responseType = config.responseType;
+	    } catch (e) {
+	      if (request.responseType !== 'json') {
+	        throw e;
+	      }
+	    }
+	  }
+
+	  if (utils.isArrayBuffer(requestData)) {
+	    requestData = new DataView(requestData);
+	  }
+
+	  // Send the request
+	  request.send(requestData);
+	};
+
+
+/***/ },
+/* 34 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	function encode(val) {
+	  return encodeURIComponent(val).
+	    replace(/%40/gi, '@').
+	    replace(/%3A/gi, ':').
+	    replace(/%24/g, '$').
+	    replace(/%2C/gi, ',').
+	    replace(/%20/g, '+').
+	    replace(/%5B/gi, '[').
+	    replace(/%5D/gi, ']');
+	}
+
+	/**
+	 * Build a URL by appending params to the end
+	 *
+	 * @param {string} url The base of the url (e.g., http://www.google.com)
+	 * @param {object} [params] The params to be appended
+	 * @returns {string} The formatted url
+	 */
+	module.exports = function buildURL(url, params, paramsSerializer) {
+	  /*eslint no-param-reassign:0*/
+	  if (!params) {
+	    return url;
+	  }
+
+	  var serializedParams;
+	  if (paramsSerializer) {
+	    serializedParams = paramsSerializer(params);
+	  } else {
+	    var parts = [];
+
+	    utils.forEach(params, function serialize(val, key) {
+	      if (val === null || typeof val === 'undefined') {
+	        return;
+	      }
+
+	      if (utils.isArray(val)) {
+	        key = key + '[]';
+	      }
+
+	      if (!utils.isArray(val)) {
+	        val = [val];
+	      }
+
+	      utils.forEach(val, function parseValue(v) {
+	        if (utils.isDate(v)) {
+	          v = v.toISOString();
+	        } else if (utils.isObject(v)) {
+	          v = JSON.stringify(v);
+	        }
+	        parts.push(encode(key) + '=' + encode(v));
+	      });
+	    });
+
+	    serializedParams = parts.join('&');
+	  }
+
+	  if (serializedParams) {
+	    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+	  }
+
+	  return url;
+	};
+
+
+
+/***/ },
+/* 35 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	/**
+	 * Parse headers into an object
+	 *
+	 * ```
+	 * Date: Wed, 27 Aug 2014 08:58:49 GMT
+	 * Content-Type: application/json
+	 * Connection: keep-alive
+	 * Transfer-Encoding: chunked
+	 * ```
+	 *
+	 * @param {String} headers Headers needing to be parsed
+	 * @returns {Object} Headers parsed into an object
+	 */
+	module.exports = function parseHeaders(headers) {
+	  var parsed = {};
+	  var key;
+	  var val;
+	  var i;
+
+	  if (!headers) { return parsed; }
+
+	  utils.forEach(headers.split('\n'), function parser(line) {
+	    i = line.indexOf(':');
+	    key = utils.trim(line.substr(0, i)).toLowerCase();
+	    val = utils.trim(line.substr(i + 1));
+
+	    if (key) {
+	      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+	    }
+	  });
+
+	  return parsed;
+	};
+
+
+/***/ },
+/* 36 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	/**
+	 * Transform the data for a request or a response
+	 *
+	 * @param {Object|String} data The data to be transformed
+	 * @param {Array} headers The headers for the request or response
+	 * @param {Array|Function} fns A single function or Array of functions
+	 * @returns {*} The resulting transformed data
+	 */
+	module.exports = function transformData(data, headers, fns) {
+	  /*eslint no-param-reassign:0*/
+	  utils.forEach(fns, function transform(fn) {
+	    data = fn(data, headers);
+	  });
+
+	  return data;
+	};
+
+
+/***/ },
+/* 37 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	module.exports = (
+	  utils.isStandardBrowserEnv() ?
+
+	  // Standard browser envs have full support of the APIs needed to test
+	  // whether the request URL is of the same origin as current location.
+	  (function standardBrowserEnv() {
+	    var msie = /(msie|trident)/i.test(navigator.userAgent);
+	    var urlParsingNode = document.createElement('a');
+	    var originURL;
+
+	    /**
+	    * Parse a URL to discover it's components
+	    *
+	    * @param {String} url The URL to be parsed
+	    * @returns {Object}
+	    */
+	    function resolveURL(url) {
+	      var href = url;
+
+	      if (msie) {
+	        // IE needs attribute set twice to normalize properties
+	        urlParsingNode.setAttribute('href', href);
+	        href = urlParsingNode.href;
+	      }
+
+	      urlParsingNode.setAttribute('href', href);
+
+	      // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+	      return {
+	        href: urlParsingNode.href,
+	        protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+	        host: urlParsingNode.host,
+	        search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+	        hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+	        hostname: urlParsingNode.hostname,
+	        port: urlParsingNode.port,
+	        pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
+	                  urlParsingNode.pathname :
+	                  '/' + urlParsingNode.pathname
+	      };
+	    }
+
+	    originURL = resolveURL(window.location.href);
+
+	    /**
+	    * Determine if a URL shares the same origin as the current location
+	    *
+	    * @param {String} requestURL The URL to test
+	    * @returns {boolean} True if URL shares the same origin, otherwise false
+	    */
+	    return function isURLSameOrigin(requestURL) {
+	      var parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
+	      return (parsed.protocol === originURL.protocol &&
+	            parsed.host === originURL.host);
+	    };
+	  })() :
+
+	  // Non standard browser envs (web workers, react-native) lack needed support.
+	  (function nonStandardBrowserEnv() {
+	    return function isURLSameOrigin() {
+	      return true;
+	    };
+	  })()
+	);
+
+
+/***/ },
+/* 38 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	// btoa polyfill for IE<10 courtesy https://github.com/davidchambers/Base64.js
+
+	var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+
+	function InvalidCharacterError(message) {
+	  this.message = message;
+	}
+	InvalidCharacterError.prototype = new Error;
+	InvalidCharacterError.prototype.code = 5;
+	InvalidCharacterError.prototype.name = 'InvalidCharacterError';
+
+	function btoa(input) {
+	  var str = String(input);
+	  var output = '';
+	  for (
+	    // initialize result and counter
+	    var block, charCode, idx = 0, map = chars;
+	    // if the next str index does not exist:
+	    //   change the mapping table to "="
+	    //   check if d has no fractional digits
+	    str.charAt(idx | 0) || (map = '=', idx % 1);
+	    // "8 - idx % 1 * 8" generates the sequence 2, 4, 6, 8
+	    output += map.charAt(63 & block >> 8 - idx % 1 * 8)
+	  ) {
+	    charCode = str.charCodeAt(idx += 3 / 4);
+	    if (charCode > 0xFF) {
+	      throw new InvalidCharacterError('INVALID_CHARACTER_ERR: DOM Exception 5');
+	    }
+	    block = block << 8 | charCode;
+	  }
+	  return output;
+	}
+
+	module.exports = btoa;
+
+
+/***/ },
+/* 39 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	module.exports = (
+	  utils.isStandardBrowserEnv() ?
+
+	  // Standard browser envs support document.cookie
+	  (function standardBrowserEnv() {
+	    return {
+	      write: function write(name, value, expires, path, domain, secure) {
+	        var cookie = [];
+	        cookie.push(name + '=' + encodeURIComponent(value));
+
+	        if (utils.isNumber(expires)) {
+	          cookie.push('expires=' + new Date(expires).toGMTString());
+	        }
+
+	        if (utils.isString(path)) {
+	          cookie.push('path=' + path);
+	        }
+
+	        if (utils.isString(domain)) {
+	          cookie.push('domain=' + domain);
+	        }
+
+	        if (secure === true) {
+	          cookie.push('secure');
+	        }
+
+	        document.cookie = cookie.join('; ');
+	      },
+
+	      read: function read(name) {
+	        var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+	        return (match ? decodeURIComponent(match[3]) : null);
+	      },
+
+	      remove: function remove(name) {
+	        this.write(name, '', Date.now() - 86400000);
+	      }
+	    };
+	  })() :
+
+	  // Non standard browser env (web workers, react-native) lack needed support.
+	  (function nonStandardBrowserEnv() {
+	    return {
+	      write: function write() {},
+	      read: function read() { return null; },
+	      remove: function remove() {}
+	    };
+	  })()
+	);
+
+
+/***/ },
+/* 40 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var utils = __webpack_require__(31);
+
+	function InterceptorManager() {
+	  this.handlers = [];
+	}
+
+	/**
+	 * Add a new interceptor to the stack
+	 *
+	 * @param {Function} fulfilled The function to handle `then` for a `Promise`
+	 * @param {Function} rejected The function to handle `reject` for a `Promise`
+	 *
+	 * @return {Number} An ID used to remove interceptor later
+	 */
+	InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+	  this.handlers.push({
+	    fulfilled: fulfilled,
+	    rejected: rejected
+	  });
+	  return this.handlers.length - 1;
+	};
+
+	/**
+	 * Remove an interceptor from the stack
+	 *
+	 * @param {Number} id The ID that was returned by `use`
+	 */
+	InterceptorManager.prototype.eject = function eject(id) {
+	  if (this.handlers[id]) {
+	    this.handlers[id] = null;
+	  }
+	};
+
+	/**
+	 * Iterate over all the registered interceptors
+	 *
+	 * This method is particularly useful for skipping over any
+	 * interceptors that may have become `null` calling `eject`.
+	 *
+	 * @param {Function} fn The function to call for each interceptor
+	 */
+	InterceptorManager.prototype.forEach = function forEach(fn) {
+	  utils.forEach(this.handlers, function forEachHandler(h) {
+	    if (h !== null) {
+	      fn(h);
+	    }
+	  });
+	};
+
+	module.exports = InterceptorManager;
+
+
+/***/ },
+/* 41 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	/**
+	 * Determines whether the specified URL is absolute
+	 *
+	 * @param {string} url The URL to test
+	 * @returns {boolean} True if the specified URL is absolute, otherwise false
+	 */
+	module.exports = function isAbsoluteURL(url) {
+	  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+	  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+	  // by any combination of letters, digits, plus, period, or hyphen.
+	  return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
+	};
+
+
+/***/ },
+/* 42 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	/**
+	 * Creates a new URL by combining the specified URLs
+	 *
+	 * @param {string} baseURL The base URL
+	 * @param {string} relativeURL The relative URL
+	 * @returns {string} The combined URL
+	 */
+	module.exports = function combineURLs(baseURL, relativeURL) {
+	  return baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '');
+	};
+
+
+/***/ },
+/* 43 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	module.exports = function bind(fn, thisArg) {
+	  return function wrap() {
+	    var args = new Array(arguments.length);
+	    for (var i = 0; i < args.length; i++) {
+	      args[i] = arguments[i];
+	    }
+	    return fn.apply(thisArg, args);
+	  };
+	};
+
+
+/***/ },
+/* 44 */
+/***/ function(module, exports) {
+
+	'use strict';
+
+	/**
+	 * Syntactic sugar for invoking a function and expanding an array for arguments.
+	 *
+	 * Common use case would be to use `Function.prototype.apply`.
+	 *
+	 *  ```js
+	 *  function f(x, y, z) {}
+	 *  var args = [1, 2, 3];
+	 *  f.apply(null, args);
+	 *  ```
+	 *
+	 * With `spread` this example can be re-written.
+	 *
+	 *  ```js
+	 *  spread(function(x, y, z) {})([1, 2, 3]);
+	 *  ```
+	 *
+	 * @param {Function} callback
+	 * @returns {Function}
+	 */
+	module.exports = function spread(callback) {
+	  return function wrap(arr) {
+	    return callback.apply(null, arr);
+	  };
+	};
 
 
 /***/ }

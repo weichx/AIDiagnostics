@@ -1,16 +1,15 @@
-.row
-  %ol.breadcrumb
-    -#%li
-    -#  %a(v-on:click="setState('decisions')") Decisions
-    -#%li
-    -#  %a(v-on:click="setState('actions')") Actions
-    -#%li
-    -#  %a(v-on:click="setState('considerations')") Considerations
-  .col-md-3
+.container
+  .row
 
-    %decision-list-component(v-bind:decision-log="decisionLog")
+    .col-md-3
 
-  .col-md-3
+      %decision-list-component(v-bind:decision-log="decisionLog")
 
-    %decision-details-component(v-if="currentDecisionEntry" v-bind:decision="currentDecisionEntry")
-    %action-details-component(v-if="currentActionEntry" v-bind:action="currentActionEntry")
+    .col-md-3
+
+      %decision-details-component(v-if="currentDecisionEntry" v-bind:decision="currentDecisionEntry")
+
+      %action-details-component(v-if="currentActionEntry" v-bind:action="currentActionEntry")
+
+    .col-md-6
+      %consideration-details-component(v-if="currentConsiderationEntry" v-bind:consideration="currentConsiderationEntry")
