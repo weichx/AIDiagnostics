@@ -9,6 +9,8 @@ import {ActionDetailComponent} from "../components/action_details/action_details
 import {inject} from "needles/built/src/injector";
 import {DecisionLog} from "../objects/decision_log";
 import {ActionLogEntry} from "../objects/action_log_entry";
+import {Consideration} from "../objects/consideration_log_entry";
+import {ConsiderationDetails} from "../components/consideration_details/consideration_details";
 
 Vue.config.debug = true;
 Vue.use(VueRouter);
@@ -18,8 +20,10 @@ export class MainVue extends VueApi {
 
     @data public currentDecisionEntry : DecisionLogEntry;
     @data public currentActionEntry : ActionLogEntry;
-    
+    @data public currentConsiderationEntry : Consideration;
+
     @inject('decisionLog') public decisionLog : DecisionLog;
+
 }
 
 var router = new VueRouter();
@@ -28,8 +32,11 @@ router.map({
     '/' : {
         component : MainVue.getVueClassAsync()
     },
-    '/decisions': {
-        component: DecisionListComponent.getVueClassAsync()
+    '/entities/:entityName': {
+        component: DecisionListComponent.getVueClassAsync(),
+        subRoutes: {
+            '/decisions'
+        }
     },
     '/decisions/:decisionIndex': {
         component: DecisionDetailComponent.getVueClassAsync()
@@ -37,6 +44,9 @@ router.map({
     '/decisions/:decisionIndex/actions/:actionIndex': {
         component: ActionDetailComponent.getVueClassAsync()
     },
+    '/decision/:decisionIndex/actions/:actionIndex/considerations/:considerationIndex': {
+        component: ConsiderationDetails.getVueClassAsync()    
+    }
 });
 
 router.redirect({
@@ -44,3 +54,6 @@ router.redirect({
 });
 
 router.start(Vue.extend(), "#mount");
+
+
+//entity Name / decisions / id / actions / id / considerations / id

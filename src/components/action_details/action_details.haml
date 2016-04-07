@@ -12,7 +12,7 @@
           %td Output
       %tbody
         %template(v-for="consideration in action.considerations")
-          %tr
+          %tr(v-on:click="selectConsideration(consideration)")
             %td {{consideration.name}}
             %td {{consideration.input}}
             %td {{consideration.output}}
